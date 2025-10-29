@@ -6,15 +6,18 @@
 
 #define LED_PIN    8
 #define LED_COUNT  4
+#define PIR_PIN    2
+
 Adafruit_NeoPixel strip(LED_COUNT, LED_PIN, NEO_GRB + NEO_KHZ800);
 
 int currentLED = 0; // Global variable to keep track of the current LED
 unsigned long lastSoundTime = 0; // Global variable to keep track of the last sound play time
-const unsigned long soundInterval = 60000; //interval in milliseconds (60000 = 1 minute) 
+const unsigned long soundInterval = 60000; //interval in milliseconds (60000 = 1 minute)
 
 const unsigned long flickerInterval = 180; // Flicker interval in milliseconds for red laughter
 static unsigned long lastFlickerTime = 0;
 static bool ledsAreRed = false; // Boolean to track if LEDs are red
+static uint8_t priorPIRState = LOW; // Track previous PIR state
 
 #define WAV_BUFFER_SIZE    256
 static uint8_t     wavBuf[2][WAV_BUFFER_SIZE];
@@ -42,6 +45,8 @@ void user_setup(void) {
   strip.setBrightness(50); // Set BRIGHTNESS to about 1/5 (max = 255)
   arcada.arcadaBegin();
   arcada.filesysBegin();
+  pinMode(PIR_PIN, INPUT); // Initialize PIR sensor pin
+  priorPIRState = digitalRead(PIR_PIN); // Read initial PIR state
 }
 
 // Function to generate a warm white-yellow flame color
@@ -86,6 +91,11 @@ uint32_t (*flameFunctions[])() = {
 
 void user_loop(void) {
   unsigned long currentTime = millis();
+  uint8_t newPIRState = digitalRead(PIR_PIN); // Read current PIR state
+
+  if (newPIRState != priorPIRState) {
+    Serial.println(newPIRState == HIGH ? "PIR HIGH" : "PIR LOW");
+  }
 
   if (playing) {
     if (currentTime - lastFlickerTime >= flickerInterval) {
@@ -112,18 +122,25 @@ void user_loop(void) {
     // Move to the next LED, wrapping around if necessary
     currentLED = (currentLED + 1) % strip.numPixels();
 
-    // Check if a minute has passed since the last sound was played
-    if (currentTime - lastSoundTime >= soundInterval) {
-      Serial.println("Playing sound");
-      // Play the next .wav file in the list
-      if (startWav(wavFiles[currentFileIndex])) {
-        lastSoundTime = currentTime; // Update the last sound play time
-        currentFileIndex = (currentFileIndex + 1) % numFiles; // Move to the next file
+    // Check if PIR detects motion (transition from LOW to HIGH)
+    if (newPIRState == HIGH && priorPIRState == LOW) {
+      // Motion detected, check if cooldown period has passed
+      if (currentTime - lastSoundTime >= soundInterval) {
+        Serial.println("Motion detected - Playing sound");
+        // Play the next .wav file in the list
+        if (startWav(wavFiles[currentFileIndex])) {
+          lastSoundTime = currentTime; // Update the last sound play time
+          currentFileIndex = (currentFileIndex + 1) % numFiles; // Move to the next file
+        } else {
+          Serial.println("Failed to play sound");
+        }
       } else {
-        Serial.println("Failed to play sound");
+        Serial.println("Motion detected but cooldown active");
       }
     }
   }
+
+  priorPIRState = newPIRState; // Update the previous PIR state
 }
 
 static uint16_t readWaveData(uint8_t *dst) {
@@ -221,7 +238,7 @@ static bool startWav(const char *filename) {
 }
 
 static void wavOutCallback(void) {
-  const float volumeScale = 0.25; // Adjust this value to set the volume (0.0 to 1.0)
+  const float volumeScale = 0.35; // Adjust this value to set the volume (0.0 to 1.0)
   uint8_t n = wavBuf[activeBuf][bufIdx];
   n = static_cast<uint8_t>(n * volumeScale); // Scale the sample value to reduce volume
 

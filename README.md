@@ -10,7 +10,11 @@ The code in the `code` folder needs to be copied in as one of the user_* files i
 while making sure no others are enabled. This [blog post](https://rebeccamdeprey.com/blog/programming-the-hallowing-m4)
 was very helpful in getting started with that and setting up Arduino IDE.
 
-The code makes the laughter sound every minute, cycling through 3 different laughters. While the laugh is
-playing, the neopixels on board flash red. Other times they cycle through flame like hues of yellow, orange and red.
+The code uses a PIR sensor to check if movement is detected, and then triggers a laughter sound and flashes the LEDs red. 
+There is a configurable cooldown of one minute before the laughter can be triggered again. There are three diffrent laughs that are cycled through.
+While the laugh is playing, the neopixels on board flash red. Other times they cycle through flame like hues of yellow, orange and red.
 
 I used a modified [3D-printed case](https://www.thingiverse.com/thing:6809956) for this project.
+The PIR sensor is connected to the sensor port on the Hallowing M4 board (pin 2).
+
+Previous iteration did not have a PIR sensor and instead played the laughter at intervals.
